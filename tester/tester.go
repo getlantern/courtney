@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/getlantern/courtney/shared"
+	"github.com/getlantern/courtney/tester/logger"
 	"github.com/getlantern/courtney/tester/merge"
 	"github.com/pkg/errors"
 	"golang.org/x/tools/cover"
@@ -206,6 +206,12 @@ func (t *Tester) processDir(dir string) error {
 		return nil
 	}
 
+	combined, stdout, stderr := logger.Log(
+		t.setup.Verbose,
+		t.setup.Env.Stdout(),
+		t.setup.Env.Stderr(),
+	)
+
 	var args []string
 	var pkgs []string
 	for _, s := range t.setup.Packages {
@@ -224,6 +230,9 @@ func (t *Tester) processDir(dir string) error {
 	}
 	args = append(args, fmt.Sprintf("-coverpkg=%s", strings.Join(pkgs, ",")))
 	args = append(args, fmt.Sprintf("-coverprofile=%s", coverfile))
+	if t.setup.Verbose {
+		args = append(args, "-v")
+	}
 	if len(t.setup.TestArgs) > 0 {
 		// notest
 		args = append(args, t.setup.TestArgs...)
@@ -237,18 +246,24 @@ func (t *Tester) processDir(dir string) error {
 		)
 	}
 
-	start := time.Now()
 	exe := exec.Command("go", args...)
 	exe.Dir = dir
 	exe.Env = t.setup.Env.Environ()
-	exe.Stdout = t.setup.Env.Stdout()
-	exe.Stderr = t.setup.Env.Stderr()
+	exe.Stdout = stdout
+	exe.Stderr = stderr
 	err = exe.Run()
-	if err != nil {
-		return errors.Wrapf(err, "Error executing test: %w \n", err)
+	if strings.Contains(combined.String(), "no buildable Go source files in") {
+		// notest
+		return nil
 	}
-	if t.setup.Verbose {
-		fmt.Fprintf(t.setup.Env.Stdout(), "Tests ran in %v. Processing coverage file %v\n", time.Since(start), coverfile)
+	if err != nil {
+		// TODO: Remove when https://github.com/getlantern/courtney/issues/4 is fixed
+		// notest
+		if t.setup.Verbose {
+			// They will already have seen the output
+			return errors.Wrap(err, "Error executing test")
+		}
+		return errors.Wrapf(err, "Error executing test \nOutput:[\n%s]\n", combined.String())
 	}
 	return t.processCoverageFile(coverfile)
 }
