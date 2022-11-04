@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -28,6 +29,7 @@ func main() {
 	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
 	versionFlag := flag.Bool("version", false, "Display the version of courtney and exit")
+	parallelFlag := flag.Int("p", runtime.NumCPU(), "Max degree of parallelism, defaults to runtime.NumCPU()")
 
 	flag.Parse()
 
@@ -37,15 +39,16 @@ func main() {
 	}
 
 	setup := &shared.Setup{
-		Env:      env,
-		Paths:    patsy.NewCache(env),
-		Enforce:  *enforceFlag,
-		Verbose:  *verboseFlag,
-		Short:    *shortFlag,
-		Timeout:  *timeoutFlag,
-		Output:   *outputFlag,
-		TestArgs: argsFlag.args,
-		Load:     *loadFlag,
+		Env:         env,
+		Paths:       patsy.NewCache(env),
+		Enforce:     *enforceFlag,
+		Verbose:     *verboseFlag,
+		Short:       *shortFlag,
+		Timeout:     *timeoutFlag,
+		Output:      *outputFlag,
+		TestArgs:    argsFlag.args,
+		Load:        *loadFlag,
+		Parallelism: *parallelFlag,
 	}
 	if err := Run(setup); err != nil {
 		fmt.Printf("%+v", err)

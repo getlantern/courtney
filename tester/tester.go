@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/getlantern/courtney/shared"
 	"github.com/getlantern/courtney/tester/logger"
@@ -30,6 +31,7 @@ type Tester struct {
 	setup   *shared.Setup
 	cover   string
 	Results []*cover.Profile
+	mx      sync.Mutex
 }
 
 // Load loads pre-prepared coverage files instead of running 'go test'
@@ -55,11 +57,27 @@ func (t *Tester) Test() error {
 	}
 	defer os.RemoveAll(t.cover)
 
-	for _, spec := range t.setup.Packages {
-		if err := t.processDir(spec.Dir); err != nil {
-			return err
-		}
+	var wg sync.WaitGroup
+	wg.Add(t.setup.Parallelism)
+
+	work := make(chan shared.PackageSpec, len(t.setup.Packages))
+	for i := 0; i < t.setup.Parallelism; i++ {
+		go func() {
+			defer wg.Done()
+			for spec := range work {
+				if err := t.processDir(spec.Dir); err != nil {
+					panic(err)
+				}
+			}
+		}()
 	}
+
+	for _, spec := range t.setup.Packages {
+		work <- spec
+	}
+	close(work)
+
+	wg.Wait()
 
 	return nil
 }
@@ -184,7 +202,6 @@ func (t *Tester) ProcessExcludes(excludes map[string]map[int]bool) error {
 }
 
 func (t *Tester) processDir(dir string) error {
-
 	coverfile := filepath.Join(
 		t.cover,
 		fmt.Sprintf("%x", md5.Sum([]byte(dir)))+".out",
@@ -237,7 +254,6 @@ func (t *Tester) processDir(dir string) error {
 		// notest
 		args = append(args, t.setup.TestArgs...)
 	}
-	args = append(args, pkgs...)
 	if t.setup.Verbose {
 		fmt.Fprintf(
 			t.setup.Env.Stdout(),
@@ -274,9 +290,11 @@ func (t *Tester) processCoverageFile(filename string) error {
 		return err
 	}
 	for _, p := range profiles {
+		t.mx.Lock()
 		if t.Results, err = merge.AddProfile(t.Results, p); err != nil {
 			return err
 		}
+		t.mx.Unlock()
 	}
 	return nil
 }
