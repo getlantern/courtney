@@ -27,8 +27,14 @@ func main() {
 	argsFlag := new(argsValue)
 	flag.Var(argsFlag, "t", "Argument to pass to the 'go test' command. Can be used more than once.")
 	loadFlag := flag.String("l", "", "Load coverage file(s) instead of running 'go test'")
+	versionFlag := flag.Bool("version", false, "Display the version of courtney and exit")
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("getlantern/courtney version 0.01\n")
+		os.Exit(0)
+	}
 
 	setup := &shared.Setup{
 		Env:      env,
