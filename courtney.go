@@ -32,7 +32,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("getlantern/courtney version 0.01\n")
+		fmt.Printf("getlantern/courtney version 0.02\n")
 		os.Exit(0)
 	}
 
