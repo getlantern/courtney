@@ -237,6 +237,7 @@ func (t *Tester) processDir(dir string) error {
 		// notest
 		args = append(args, t.setup.TestArgs...)
 	}
+	args = append(args, pkgs...)
 	if t.setup.Verbose {
 		fmt.Fprintf(
 			t.setup.Env.Stdout(),
